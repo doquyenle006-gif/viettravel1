@@ -765,6 +765,792 @@ Các giá trị `in nghiêng đậm` là **tham số cấu hình** (Phụ lục 
 | Kiểm thử | Unit cho quy tắc tiền/chỗ; kiểm thử đồng thời (race) cho tồn chỗ; kiểm thử quyền/IDOR; E2E cho luồng đặt-thanh toán-hủy |
 
 ---
+## X. YÊU CẦU BẢO MẬT
+
+### X.1. Mục tiêu bảo mật
+
+Hệ thống phải bảo vệ tài khoản người dùng, dữ liệu khách hàng, thông tin hành khách, thông tin thanh toán và dữ liệu quản trị.
+
+Các nguyên tắc bắt buộc:
+
+- Máy chủ là nguồn sự thật duy nhất đối với quyền, giá, tồn chỗ, trạng thái đơn và thanh toán.
+- Frontend React không được là nơi quyết định quyền truy cập hoặc nghiệp vụ quan trọng.
+- Không lưu mật khẩu dạng rõ.
+- Không lưu access token hoặc refresh token trong `localStorage`.
+- Không đưa thông tin nhạy cảm vào URL, log hoặc analytics.
+- Mọi API quản trị phải kiểm tra quyền ở phía server.
+- Dữ liệu cá nhân phải được giới hạn theo quyền truy cập.
+
+### X.2. Xác thực người dùng
+
+Hệ thống hỗ trợ:
+
+1. Đăng ký tài khoản.
+2. Đăng nhập.
+3. Đăng xuất.
+4. Xác minh email.
+5. Quên mật khẩu.
+6. Đặt lại mật khẩu.
+7. Đổi mật khẩu.
+8. Đăng xuất khỏi tất cả thiết bị.
+9. Quản lý các phiên đăng nhập.
+10. Khóa tạm thời khi đăng nhập sai nhiều lần.
+
+Quy định:
+
+- Mật khẩu phải được hash bằng thuật toán an toàn như Argon2id hoặc bcrypt.
+- Không lưu mật khẩu dạng plaintext.
+- Không trả mật khẩu về Frontend.
+- Thông báo đăng nhập/quên mật khẩu không được làm lộ email có tồn tại trong hệ thống.
+- Token đặt lại mật khẩu phải có thời hạn và chỉ được sử dụng một lần.
+
+### X.3. Quản lý phiên đăng nhập
+
+- Access token có thời gian sống ngắn.
+- Access token chỉ được lưu trong bộ nhớ của ứng dụng.
+- Refresh token phải sử dụng cookie `HttpOnly; Secure; SameSite=Lax`.
+- Refresh token được xoay vòng khi làm mới phiên.
+- Khi đăng xuất phải thu hồi phiên.
+- Người dùng có chức năng “Đăng xuất tất cả thiết bị”.
+- Khi phiên hết hạn, Frontend phải yêu cầu máy chủ làm mới phiên hoặc đưa người dùng về trang đăng nhập.
+
+### X.4. Phân quyền RBAC
+
+Hệ thống sử dụng phân quyền theo vai trò.
+
+Các vai trò chính:
+
+- `customer`
+- `sales`
+- `tour_manager`
+- `operator`
+- `accountant`
+- `content_editor`
+- `guide`
+- `super_admin`
+
+Mỗi quyền được biểu diễn theo dạng:
+
+```text
+resource:action
+```
+
+Ví dụ:
+
+```text
+tour:read
+tour:create
+tour:update
+tour:delete
+booking:read
+booking:update
+payment:read
+payment:approve
+refund:approve
+user:manage
+role:manage
+audit:view
+```
+
+Quy tắc:
+
+- Frontend chỉ dùng quyền để ẩn/hiện chức năng.
+- Backend bắt buộc kiểm tra quyền đối với mọi API.
+- Không được coi việc ẩn nút trên React là biện pháp bảo mật.
+- Người dùng không được truy cập dữ liệu của người khác chỉ bằng cách thay đổi ID hoặc mã đơn.
+- Các thao tác nguy hiểm phải yêu cầu xác nhận và ghi nhật ký.
+
+### X.5. Bảo vệ API
+
+API phải có:
+
+- HTTPS.
+- CORS được cấu hình theo domain được phép.
+- Rate limiting đối với đăng nhập, đăng ký, quên mật khẩu và các API nhạy cảm.
+- Kiểm tra dữ liệu đầu vào ở server.
+- Kiểm tra quyền ở server.
+- Kiểm tra ownership đối với dữ liệu của khách hàng.
+- Chống SQL Injection bằng ORM hoặc prepared statements.
+- Chống XSS khi xử lý nội dung do người dùng nhập.
+- CSRF protection khi sử dụng cookie cho phiên.
+- Không trả stack trace hoặc thông tin hệ thống cho người dùng production.
+
+### X.6. Bảo vệ dữ liệu cá nhân
+
+Các dữ liệu nhạy cảm gồm:
+
+- Số CCCD.
+- Số hộ chiếu.
+- Số điện thoại.
+- Email.
+- Thông tin hành khách.
+- Chứng từ thanh toán.
+
+Quy định:
+
+- Chỉ thu thập dữ liệu cần thiết.
+- Không hiển thị đầy đủ dữ liệu nhạy cảm nếu người dùng không có quyền.
+- Không ghi dữ liệu nhạy cảm vào log.
+- Không lưu dữ liệu giấy tờ trong URL.
+- Khi hiển thị số giấy tờ phải che một phần.
+- File chứng từ phải kiểm tra loại file và kích thước.
+- Dữ liệu nhạy cảm phải được bảo vệ khi lưu trữ và truyền tải.
+
+### X.7. Bảo mật thanh toán
+
+- Không lưu thông tin thẻ thanh toán trên hệ thống nếu không cần thiết.
+- Không tin trạng thái thanh toán từ tham số URL.
+- Trạng thái thanh toán phải được xác nhận từ backend/gateway.
+- Webhook thanh toán phải kiểm tra chữ ký.
+- Webhook phải có cơ chế chống xử lý trùng.
+- Mỗi giao dịch phải có mã tham chiếu duy nhất.
+- Không cho phép người dùng tự sửa số tiền thanh toán.
+- Backend phải kiểm tra số tiền trước khi xác nhận thanh toán.
+
+### X.8. Audit Log
+
+Hệ thống phải ghi nhật ký các thao tác quan trọng:
+
+- Đăng nhập/đăng xuất.
+- Thay đổi quyền.
+- Tạo/sửa/xóa tour.
+- Tạo/sửa/hủy booking.
+- Xác nhận thanh toán.
+- Hoàn tiền.
+- Thay đổi chính sách.
+- Xem dữ liệu nhạy cảm.
+- Thay đổi cấu hình.
+- Xóa/yêu cầu xóa tài khoản.
+
+Audit log tối thiểu gồm:
+
+```text
+id
+user_id
+action
+resource
+resource_id
+ip_address
+user_agent
+old_value
+new_value
+created_at
+```
+
+Không ghi mật khẩu, access token hoặc dữ liệu bí mật vào audit log.
+
+### X.9. Bảo mật quản trị
+
+Khu vực `/admin` phải:
+
+- Yêu cầu đăng nhập.
+- Kiểm tra quyền ở server.
+- Không cho truy cập trực tiếp API nếu không có quyền.
+- Có MFA/2FA cho tài khoản quản trị quan trọng.
+- Có nhật ký thao tác.
+- Có timeout phiên phù hợp.
+- Không cho một nhân viên tự phê duyệt các thao tác cần người thứ hai nếu nghiệp vụ yêu cầu.
+
+### X.10. Sao lưu và khôi phục
+
+Hệ thống phải có:
+
+- Backup database định kỳ.
+- Backup file upload quan trọng.
+- Kiểm tra khả năng khôi phục backup.
+- Không lưu backup chứa dữ liệu thật ở nơi công khai.
+- Có quy trình khôi phục khi database bị lỗi.
+
+### X.11. Nguyên tắc bảo mật đối với Frontend React
+
+React chỉ chịu trách nhiệm:
+
+- Kiểm tra dữ liệu đầu vào để phản hồi nhanh.
+- Hiển thị/ẩn giao diện theo quyền được server trả về.
+- Không lưu token vào `localStorage`.
+- Không ghi dữ liệu nhạy cảm vào console.
+- Không chứa API secret.
+- Không tính giá, tồn chỗ hoặc quyết định quyền.
+- Không tin dữ liệu thanh toán từ URL.
+
+Mọi kiểm tra quan trọng phải được thực hiện lại tại Backend.
+---
+## Y. YÊU CẦU VÀ THIẾT KẾ CƠ SỞ DỮ LIỆU
+
+### Y.1. Mục tiêu
+
+Cơ sở dữ liệu lưu trữ tập trung toàn bộ dữ liệu phục vụ hệ thống đặt và quản lý tour.
+
+Database phải đảm bảo:
+
+- Tính toàn vẹn dữ liệu.
+- Không tạo booking trùng.
+- Không vượt quá số lượng ghế.
+- Theo dõi được lịch sử thanh toán.
+- Theo dõi được thay đổi quan trọng.
+- Phân quyền dữ liệu theo người dùng.
+- Có khả năng backup và khôi phục.
+
+### Y.2. Công nghệ
+
+Đề xuất:
+
+```text
+Database: MySQL 8.x / MariaDB
+Backend: Laravel
+ORM: Eloquent
+Migration: Laravel Migration
+Seeder: Laravel Seeder
+```
+
+React Frontend **không kết nối trực tiếp với MySQL**.
+
+Kiến trúc:
+
+```text
+React
+  │
+  │ HTTPS / REST API
+  ▼
+Laravel Backend
+  │
+  │ Eloquent ORM
+  ▼
+MySQL / MariaDB
+```
+
+### Y.3. Nhóm bảng người dùng và phân quyền
+
+#### `users`
+
+```text
+id
+name
+email
+password
+phone
+avatar
+email_verified_at
+status
+created_at
+updated_at
+```
+
+#### `roles`
+
+```text
+id
+name
+code
+description
+created_at
+updated_at
+```
+
+#### `permissions`
+
+```text
+id
+name
+code
+description
+created_at
+updated_at
+```
+
+#### `role_user`
+
+```text
+user_id
+role_id
+```
+
+#### `permission_role`
+
+```text
+permission_id
+role_id
+```
+
+### Y.4. Nhóm bảng tour
+
+#### `destinations`
+
+```text
+id
+name
+slug
+description
+image
+status
+created_at
+updated_at
+```
+
+#### `categories`
+
+```text
+id
+name
+slug
+description
+status
+created_at
+updated_at
+```
+
+#### `tours`
+
+```text
+id
+category_id
+destination_id
+name
+slug
+summary
+description
+duration_days
+duration_nights
+status
+min_pax
+max_pax
+deposit_percent
+cover_image
+created_at
+updated_at
+```
+
+#### `tour_images`
+
+```text
+id
+tour_id
+image_url
+alt
+sort_order
+```
+
+#### `tour_itineraries`
+
+```text
+id
+tour_id
+day_no
+title
+content
+accommodation
+```
+
+#### `tour_tags`
+
+```text
+id
+tour_id
+tag_id
+```
+
+### Y.5. Lịch khởi hành và chỗ
+
+#### `departures`
+
+```text
+id
+tour_id
+departure_date
+return_date
+status
+total_seats
+available_seats
+price_adult
+price_child
+price_infant
+single_supplement
+meeting_point
+meeting_time
+booking_cutoff_at
+created_at
+updated_at
+```
+
+Quy tắc:
+
+```text
+available_seats >= 0
+available_seats <= total_seats
+```
+
+Việc giữ/trừ ghế phải được xử lý transaction ở Backend.
+
+Không cho Frontend tự sửa số ghế.
+
+### Y.6. Nhóm booking
+
+#### `bookings`
+
+```text
+id
+code
+user_id
+departure_id
+status
+payment_status
+contact_name
+contact_email
+contact_phone
+adults
+children
+infants
+subtotal
+discount_total
+total
+paid_amount
+refunded_amount
+deposit_required
+balance_due_date
+hold_expires_at
+terms_version
+version
+created_at
+updated_at
+```
+
+#### `booking_passengers`
+
+```text
+id
+booking_id
+full_name
+gender
+date_of_birth
+passenger_type
+id_number
+passport_number
+nationality
+special_request
+is_lead
+```
+
+Dữ liệu CCCD/hộ chiếu phải được bảo vệ theo quy định bảo mật.
+
+### Y.7. Nhóm mã giảm giá
+
+#### `coupons`
+
+```text
+id
+code
+name
+type
+value
+min_order_amount
+max_discount_amount
+start_at
+end_at
+usage_limit
+used_count
+status
+created_at
+updated_at
+```
+
+#### `coupon_usages`
+
+```text
+id
+coupon_id
+user_id
+booking_id
+discount_amount
+used_at
+```
+
+### Y.8. Nhóm thanh toán
+
+#### `payments`
+
+```text
+id
+booking_id
+purpose
+method
+amount
+status
+transaction_code
+gateway_transaction_id
+paid_at
+created_at
+updated_at
+```
+
+#### `payment_webhooks`
+
+```text
+id
+payment_id
+provider
+event_id
+payload
+signature_valid
+processed_at
+created_at
+```
+
+`event_id` phải có cơ chế chống xử lý webhook trùng.
+
+### Y.9. Nhóm hoàn tiền
+
+#### `refunds`
+
+```text
+id
+booking_id
+payment_id
+amount
+reason
+status
+requested_by
+approved_by
+processed_at
+created_at
+updated_at
+```
+
+Người tạo yêu cầu hoàn tiền không được tự phê duyệt nếu nghiệp vụ yêu cầu phân quyền hai bước.
+
+### Y.10. Nhóm đánh giá
+
+#### `reviews`
+
+```text
+id
+user_id
+tour_id
+booking_id
+rating
+title
+content
+status
+created_at
+updated_at
+```
+
+Mỗi booking chỉ được đánh giá theo quy tắc nghiệp vụ đã quy định.
+
+### Y.11. Nhóm hỗ trợ
+
+#### `support_tickets`
+
+```text
+id
+user_id
+booking_id
+subject
+category
+priority
+status
+created_at
+updated_at
+```
+
+#### `ticket_messages`
+
+```text
+id
+ticket_id
+user_id
+message
+created_at
+```
+
+### Y.12. Nhóm thông báo
+
+#### `notifications`
+
+```text
+id
+user_id
+type
+title
+content
+read_at
+created_at
+```
+
+### Y.13. Nhóm audit log
+
+#### `audit_logs`
+
+```text
+id
+user_id
+action
+resource
+resource_id
+old_value
+new_value
+ip_address
+user_agent
+created_at
+```
+
+Không lưu:
+
+```text
+password
+access_token
+refresh_token
+secret_key
+```
+
+### Y.14. Nhóm phiên đăng nhập
+
+#### `sessions`
+
+```text
+id
+user_id
+token_hash
+ip_address
+user_agent
+last_activity_at
+expires_at
+created_at
+```
+
+Refresh token thực tế phải được lưu theo cơ chế bảo mật của Backend, không lưu plaintext nếu kiến trúc yêu cầu lưu phía server.
+
+### Y.15. Quan hệ chính
+
+```text
+users
+  │
+  ├──< bookings
+  │       │
+  │       ├──< booking_passengers
+  │       ├──< payments
+  │       ├──< refunds
+  │       └──< reviews
+  │
+  └──< support_tickets
+
+categories
+  │
+  └──< tours >── destinations
+          │
+          ├──< tour_images
+          ├──< tour_itineraries
+          └──< departures
+                    │
+                    └──< bookings
+
+coupons
+  │
+  └──< coupon_usages >── bookings
+
+roles
+  │
+  └──< permissions
+```
+
+### Y.16. Quy tắc toàn vẹn dữ liệu
+
+Database phải áp dụng:
+
+- Primary Key cho mỗi bảng.
+- Foreign Key cho các quan hệ.
+- Unique Index cho email và mã đơn.
+- Unique Index cho mã coupon.
+- Index cho các trường tìm kiếm thường xuyên.
+- NOT NULL cho trường bắt buộc.
+- CHECK hoặc validation ở Backend cho các giá trị giới hạn.
+- Transaction cho nghiệp vụ booking/thanh toán/hoàn tiền.
+- Không hard delete dữ liệu lịch sử booking và thanh toán.
+
+### Y.17. Transaction khi đặt tour
+
+Khi khách đặt tour:
+
+```text
+BEGIN TRANSACTION
+
+1. Kiểm tra departure
+2. Khóa bản ghi departure
+3. Kiểm tra số ghế
+4. Tính/nhận báo giá từ server
+5. Tạo booking
+6. Tạo booking_passengers
+7. Giữ ghế
+8. Lưu thời gian hết hạn giữ chỗ
+
+COMMIT
+```
+
+Nếu một bước thất bại:
+
+```text
+ROLLBACK
+```
+
+Mục tiêu là không xảy ra trường hợp:
+
+```text
+Booking đã tạo
+nhưng ghế không được giữ
+
+hoặc
+
+Ghế đã trừ
+nhưng booking không tồn tại
+```
+
+### Y.18. Migration và Seeder
+
+Database phải được tạo bằng Migration.
+
+Ví dụ:
+
+```bash
+php artisan make:migration create_users_table
+php artisan make:migration create_tours_table
+php artisan make:migration create_departures_table
+php artisan make:migration create_bookings_table
+php artisan make:migration create_booking_passengers_table
+php artisan make:migration create_payments_table
+php artisan make:migration create_reviews_table
+php artisan make:migration create_audit_logs_table
+```
+
+Sau khi tạo migration:
+
+```bash
+php artisan migrate
+```
+
+Tạo dữ liệu mẫu:
+
+```bash
+php artisan db:seed
+```
+
+Hoặc:
+
+```bash
+php artisan migrate:fresh --seed
+```
+
+Không sử dụng dữ liệu khách hàng thật làm dữ liệu seed.
+
+### Y.19. Backup
+
+Database phải được backup định kỳ.
+
+Backup phải:
+
+- Được lưu ở nơi an toàn.
+- Không public.
+- Có giới hạn quyền truy cập.
+- Có kiểm tra khả năng restore.
+- Không commit file database vào Git.
 
 ## 13. Tích hợp bên ngoài
 

@@ -1,0 +1,31 @@
+{
+  "name": "viettrails",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "VietTrails - he thong dat va quan ly tour du lich",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc --noEmit && vite build",
+    "start": "node server/index.mjs",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
+    "seed": "node scripts/seed.mjs --force"
+  },
+  "dependencies": {
+    "dompurify": "^3.4.17",
+    "mysql2": "^3.24.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.5",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.1",
+    "@vitejs/plugin-react": "^5.1.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
+  }
+}
